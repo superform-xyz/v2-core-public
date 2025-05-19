@@ -55,7 +55,6 @@ import {CancelDepositRequest7540Hook} from "../src/core/hooks/vaults/7540/Cancel
 import {CancelRedeemRequest7540Hook} from "../src/core/hooks/vaults/7540/CancelRedeemRequest7540Hook.sol";
 import {ClaimCancelDepositRequest7540Hook} from "../src/core/hooks/vaults/7540/ClaimCancelDepositRequest7540Hook.sol";
 import {ClaimCancelRedeemRequest7540Hook} from "../src/core/hooks/vaults/7540/ClaimCancelRedeemRequest7540Hook.sol";
-import {CancelRedeemHook} from "../src/core/hooks/vaults/super-vault/CancelRedeemHook.sol";
 import {ApproveAndRequestDeposit7540VaultHook} from
     "../src/core/hooks/vaults/7540/ApproveAndRequestDeposit7540VaultHook.sol";
 import {RequestRedeem7540VaultHook} from "../src/core/hooks/vaults/7540/RequestRedeem7540VaultHook.sol";
@@ -113,7 +112,6 @@ import {BatchTransferFromHook} from "../src/core/hooks/tokens/permit2/BatchTrans
 // action oracles
 import {ERC4626YieldSourceOracle} from "../src/core/accounting/oracles/ERC4626YieldSourceOracle.sol";
 import {ERC5115YieldSourceOracle} from "../src/core/accounting/oracles/ERC5115YieldSourceOracle.sol";
-import {SuperOracle} from "../src/periphery/oracles/SuperOracle.sol";
 import {ERC7540YieldSourceOracle} from "../src/core/accounting/oracles/ERC7540YieldSourceOracle.sol";
 import {StakingYieldSourceOracle} from "../src/core/accounting/oracles/StakingYieldSourceOracle.sol";
 
@@ -130,7 +128,6 @@ import {DebridgeDlnHelper} from "pigeon/debridge/DebridgeDlnHelper.sol";
 import {MockOdosRouterV2} from "./mocks/MockOdosRouterV2.sol";
 import {AcrossV3Adapter} from "../src/core/adapters/AcrossV3Adapter.sol";
 import {DebridgeAdapter} from "../src/core/adapters/DebridgeAdapter.sol";
-import {SuperGovernor} from "../src/periphery/SuperGovernor.sol";
 
 // SuperformNativePaymaster
 import {SuperNativePaymaster} from "../src/core/paymaster/SuperNativePaymaster.sol";
@@ -144,9 +141,6 @@ import {BootstrapConfig, INexusBootstrap} from "../src/vendor/nexus/INexusBootst
 import {INexusFactory} from "../src/vendor/nexus/INexusFactory.sol";
 import {IERC7484} from "../src/vendor/nexus/IERC7484.sol";
 import {MockRegistry} from "./mocks/MockRegistry.sol";
-
-import {SuperVaultAggregator} from "../src/periphery/SuperVault/SuperVaultAggregator.sol";
-import {ECDSAPPSOracle} from "../src/periphery/oracles/ECDSAPPSOracle.sol";
 
 import {BaseHook} from "../src/core/hooks/BaseHook.sol";
 import {MockSuperExecutor} from "./mocks/MockSuperExecutor.sol";
@@ -193,7 +187,6 @@ struct Addresses {
     CancelRedeemRequest7540Hook cancelRedeemRequest7540Hook;
     ClaimCancelDepositRequest7540Hook claimCancelDepositRequest7540Hook;
     ClaimCancelRedeemRequest7540Hook claimCancelRedeemRequest7540Hook;
-    CancelRedeemHook cancelRedeemHook;
     AcrossSendFundsAndExecuteOnDstHook acrossSendFundsAndExecuteOnDstHook;
     DeBridgeSendOrderAndExecuteOnDstHook deBridgeSendOrderAndExecuteOnDstHook;
     Swap1InchHook swap1InchHook;
@@ -218,16 +211,12 @@ struct Addresses {
     ERC5115YieldSourceOracle erc5115YieldSourceOracle;
     ERC7540YieldSourceOracle erc7540YieldSourceOracle;
     StakingYieldSourceOracle stakingYieldSourceOracle;
-    SuperOracle oracleRegistry;
     SuperMerkleValidator superMerkleValidator;
     SuperDestinationValidator superDestinationValidator;
-    SuperGovernor superGovernor;
     SuperNativePaymaster superNativePaymaster;
-    SuperVaultAggregator superVaultAggregator;
-    ECDSAPPSOracle ecdsappsOracle;
     ISuperExecutor superExecutorWithSPLock;
     MockTargetExecutor mockTargetExecutor;
-    MockBaseHook mockBaseHook; // this is needed for all tests which we need to use executeWithoutHookRestrictions
+    MockBaseHook mockBaseHook; 
 }
 
 contract BaseTest is Helpers, RhinestoneModuleKit, SignatureHelper, MerkleTreeHelper, OdosAPIParser, InternalHelpers {
@@ -348,10 +337,6 @@ contract BaseTest is Helpers, RhinestoneModuleKit, SignatureHelper, MerkleTreeHe
         // Deploy hooks
         A = _deployHooks(A);
 
-        _configureGovernor();
-
-        _registerHooks(A);
-
         // Initialize accounts
         _initializeAccounts(ACCOUNT_COUNT);
 
@@ -466,18 +451,6 @@ contract BaseTest is Helpers, RhinestoneModuleKit, SignatureHelper, MerkleTreeHe
             vm.makePersistent(debridgeDlnHelper);
             contractAddresses[chainIds[i]][DEBRIDGE_DLN_HELPER_KEY] = debridgeDlnHelper;
 
-            A[i].superGovernor = new SuperGovernor{salt: SALT}(
-                address(this), address(this), address(this), TREASURY, CHAIN_1_POLYMER_PROVER
-            );
-            vm.label(address(A[i].superGovernor), SUPER_GOVERNOR_KEY);
-            contractAddresses[chainIds[i]][SUPER_GOVERNOR_KEY] = address(A[i].superGovernor);
-
-            A[i].oracleRegistry = new SuperOracle{salt: SALT}(
-                address(this), new address[](0), new address[](0), new bytes32[](0), new address[](0)
-            );
-            vm.label(address(A[i].oracleRegistry), SUPER_ORACLE_KEY);
-            contractAddresses[chainIds[i]][SUPER_ORACLE_KEY] = address(A[i].oracleRegistry);
-
             A[i].superLedgerConfiguration =
                 ISuperLedgerConfiguration(address(new SuperLedgerConfiguration{salt: SALT}()));
             vm.label(address(A[i].superLedgerConfiguration), SUPER_LEDGER_CONFIGURATION_KEY);
@@ -569,17 +542,6 @@ contract BaseTest is Helpers, RhinestoneModuleKit, SignatureHelper, MerkleTreeHe
             A[i].stakingYieldSourceOracle = new StakingYieldSourceOracle();
             vm.label(address(A[i].stakingYieldSourceOracle), STAKING_YIELD_SOURCE_ORACLE_KEY);
             contractAddresses[chainIds[i]][STAKING_YIELD_SOURCE_ORACLE_KEY] = address(A[i].stakingYieldSourceOracle);
-
-            A[i].superVaultAggregator = new SuperVaultAggregator(address(A[i].superGovernor));
-            vm.label(address(A[i].superVaultAggregator), SUPER_VAULT_AGGREGATOR_KEY);
-            contractAddresses[chainIds[i]][SUPER_VAULT_AGGREGATOR_KEY] = address(A[i].superVaultAggregator);
-
-            A[i].ecdsappsOracle = new ECDSAPPSOracle(address(A[i].superGovernor));
-            vm.label(address(A[i].ecdsappsOracle), ECDSAPPS_ORACLE_KEY);
-            contractAddresses[chainIds[i]][ECDSAPPS_ORACLE_KEY] = address(A[i].ecdsappsOracle);
-
-            A[i].superGovernor.setActivePPSOracle(address(A[i].ecdsappsOracle));
-            A[i].superGovernor.addValidator(VALIDATOR);
         }
         return A;
     }
@@ -589,7 +551,7 @@ contract BaseTest is Helpers, RhinestoneModuleKit, SignatureHelper, MerkleTreeHe
         for (uint256 i = 0; i < chainIds.length; ++i) {
             vm.selectFork(FORKS[chainIds[i]]);
 
-            address[] memory hooksAddresses = new address[](47);
+            address[] memory hooksAddresses = new address[](46);
 
             A[i].approveErc20Hook = new ApproveERC20Hook{salt: SALT}();
             vm.label(address(A[i].approveErc20Hook), APPROVE_ERC20_HOOK_KEY);
@@ -1163,26 +1125,13 @@ contract BaseTest is Helpers, RhinestoneModuleKit, SignatureHelper, MerkleTreeHe
             );
             hooksAddresses[42] = address(A[i].claimCancelRedeemRequest7540Hook);
 
-            A[i].cancelRedeemHook = new CancelRedeemHook{salt: SALT}();
-            vm.label(address(A[i].cancelRedeemHook), CANCEL_REDEEM_HOOK_KEY);
-            hookAddresses[chainIds[i]][CANCEL_REDEEM_HOOK_KEY] = address(A[i].cancelRedeemHook);
-            hooks[chainIds[i]][CANCEL_REDEEM_HOOK_KEY] = Hook(
-                CANCEL_REDEEM_HOOK_KEY,
-                HookCategory.VaultWithdrawals,
-                HookCategory.VaultDeposits,
-                address(A[i].cancelRedeemHook),
-                ""
-            );
-            hooksByCategory[chainIds[i]][HookCategory.VaultWithdrawals].push(hooks[chainIds[i]][CANCEL_REDEEM_HOOK_KEY]);
-            hooksAddresses[43] = address(A[i].cancelRedeemHook);
-
             A[i].morphoBorrowHook = new MorphoBorrowHook{salt: SALT}(MORPHO);
             vm.label(address(A[i].morphoBorrowHook), MORPHO_BORROW_HOOK_KEY);
             hookAddresses[chainIds[i]][MORPHO_BORROW_HOOK_KEY] = address(A[i].morphoBorrowHook);
             hooks[chainIds[i]][MORPHO_BORROW_HOOK_KEY] =
                 Hook(MORPHO_BORROW_HOOK_KEY, HookCategory.Loans, HookCategory.None, address(A[i].morphoBorrowHook), "");
             hooksByCategory[chainIds[i]][HookCategory.Loans].push(hooks[chainIds[i]][MORPHO_BORROW_HOOK_KEY]);
-            hooksAddresses[44] = address(A[i].morphoBorrowHook);
+            hooksAddresses[43] = address(A[i].morphoBorrowHook);
 
             A[i].morphoRepayHook = new MorphoRepayHook{salt: SALT}(MORPHO);
             vm.label(address(A[i].morphoRepayHook), MORPHO_REPAY_HOOK_KEY);
@@ -1190,12 +1139,12 @@ contract BaseTest is Helpers, RhinestoneModuleKit, SignatureHelper, MerkleTreeHe
             hooks[chainIds[i]][MORPHO_REPAY_HOOK_KEY] =
                 Hook(MORPHO_REPAY_HOOK_KEY, HookCategory.Loans, HookCategory.None, address(A[i].morphoRepayHook), "");
             hooksByCategory[chainIds[i]][HookCategory.Loans].push(hooks[chainIds[i]][MORPHO_REPAY_HOOK_KEY]);
-            hooksAddresses[45] = address(A[i].morphoRepayHook);
+            hooksAddresses[44] = address(A[i].morphoRepayHook);
 
             A[i].morphoRepayAndWithdrawHook = new MorphoRepayAndWithdrawHook{salt: SALT}(MORPHO);
             vm.label(address(A[i].morphoRepayAndWithdrawHook), MORPHO_REPAY_AND_WITHDRAW_HOOK_KEY);
             hookAddresses[chainIds[i]][MORPHO_REPAY_AND_WITHDRAW_HOOK_KEY] = address(A[i].morphoRepayAndWithdrawHook);
-            hooksAddresses[46] = address(A[i].morphoRepayAndWithdrawHook);
+            hooksAddresses[45] = address(A[i].morphoRepayAndWithdrawHook);
 
             hookListPerChain[chainIds[i]] = hooksAddresses;
             _createHooksTree(chainIds[i], hooksAddresses);
@@ -1223,124 +1172,6 @@ contract BaseTest is Helpers, RhinestoneModuleKit, SignatureHelper, MerkleTreeHe
 
         return A;
     }
-
-    function _configureGovernor() internal {
-        for (uint256 i = 0; i < chainIds.length; ++i) {
-            vm.selectFork(FORKS[chainIds[i]]);
-
-            SuperGovernor superGovernor = SuperGovernor(_getContract(chainIds[i], SUPER_GOVERNOR_KEY));
-
-            superGovernor.setAddress(
-                superGovernor.SUPER_VAULT_AGGREGATOR(), _getContract(chainIds[i], SUPER_VAULT_AGGREGATOR_KEY)
-            );
-
-            superGovernor.setAddress(superGovernor.TREASURY(), TREASURY);
-        }
-    }
-    /**
-     * @notice Registers all hooks with the periphery registry
-     * @param A Array of Addresses structs containing hook addresses
-     * @return A The input Addresses array
-     */
-
-    function _registerHooks(Addresses[] memory A) internal returns (Addresses[] memory) {
-        if (DEBUG) console2.log("---------------- REGISTERING HOOKS ----------------");
-        for (uint256 i = 0; i < chainIds.length; ++i) {
-            vm.selectFork(FORKS[chainIds[i]]);
-
-            SuperGovernor superGovernor = SuperGovernor(_getContract(chainIds[i], SUPER_GOVERNOR_KEY));
-
-            console2.log("Registering hooks for chain", chainIds[i]);
-            if (DEBUG) {
-                console2.log("deposit4626VaultHook", address(A[i].deposit4626VaultHook));
-                console2.log("redeem4626VaultHook", address(A[i].redeem4626VaultHook));
-                console2.log("approveAndRedeem4626VaultHook", address(A[i].approveAndRedeem4626VaultHook));
-                console2.log("deposit5115VaultHook", address(A[i].deposit5115VaultHook));
-                console2.log("redeem5115VaultHook", address(A[i].redeem5115VaultHook));
-                console2.log("requestDeposit7540VaultHook", address(A[i].requestDeposit7540VaultHook));
-                console2.log("requestRedeem7540VaultHook", address(A[i].requestRedeem7540VaultHook));
-                console2.log("approveAndDeposit4626VaultHook", address(A[i].approveAndDeposit4626VaultHook));
-                console2.log("approveAndDeposit5115VaultHook", address(A[i].approveAndDeposit5115VaultHook));
-                console2.log("approveAndRedeem5115VaultHook", address(A[i].approveAndRedeem5115VaultHook));
-                console2.log(
-                    "approveAndRequestDeposit7540VaultHook", address(A[i].approveAndRequestDeposit7540VaultHook)
-                );
-                console2.log("approveErc20Hook", address(A[i].approveErc20Hook));
-                console2.log("transferErc20Hook", address(A[i].transferErc20Hook));
-                console2.log("deposit7540VaultHook", address(A[i].deposit7540VaultHook));
-                console2.log("withdraw7540VaultHook", address(A[i].withdraw7540VaultHook));
-                console2.log("approveAndRedeem7540VaultHook", address(A[i].approveAndRedeem7540VaultHook));
-                console2.log("swap1InchHook", address(A[i].swap1InchHook));
-                console2.log("swapOdosHook", address(A[i].swapOdosHook));
-                console2.log("approveAndSwapOdosHook", address(A[i].approveAndSwapOdosHook));
-                console2.log("acrossSendFundsAndExecuteOnDstHook", address(A[i].acrossSendFundsAndExecuteOnDstHook));
-                console2.log("fluidClaimRewardHook", address(A[i].fluidClaimRewardHook));
-                console2.log("fluidStakeHook", address(A[i].fluidStakeHook));
-                console2.log("approveAndFluidStakeHook", address(A[i].approveAndFluidStakeHook));
-                console2.log("fluidUnstakeHook", address(A[i].fluidUnstakeHook));
-                console2.log("gearboxClaimRewardHook", address(A[i].gearboxClaimRewardHook));
-                console2.log("gearboxStakeHook", address(A[i].gearboxStakeHook));
-                console2.log("approveAndGearboxStakeHook", address(A[i].approveAndGearboxStakeHook));
-                console2.log("gearboxUnstakeHook", address(A[i].gearboxUnstakeHook));
-                console2.log("yearnClaimOneRewardHook", address(A[i].yearnClaimOneRewardHook));
-                console2.log("ethenaCooldownSharesHook", address(A[i].ethenaCooldownSharesHook));
-                console2.log("ethenaUnstakeHook", address(A[i].ethenaUnstakeHook));
-                console2.log("cancelDepositRequest7540Hook", address(A[i].cancelDepositRequest7540Hook));
-                console2.log("cancelRedeemRequest7540Hook", address(A[i].cancelRedeemRequest7540Hook));
-                console2.log("claimCancelDepositRequest7540Hook", address(A[i].claimCancelDepositRequest7540Hook));
-                console2.log("claimCancelRedeemRequest7540Hook", address(A[i].claimCancelRedeemRequest7540Hook));
-                console2.log("cancelRedeemHook", address(A[i].cancelRedeemHook));
-            }
-
-            // Register fulfillRequests hooks
-            superGovernor.registerHook(address(A[i].deposit4626VaultHook), true);
-            superGovernor.registerHook(address(A[i].redeem4626VaultHook), true);
-            superGovernor.registerHook(address(A[i].approveAndRedeem4626VaultHook), true);
-            superGovernor.registerHook(address(A[i].deposit5115VaultHook), true);
-            superGovernor.registerHook(address(A[i].redeem5115VaultHook), true);
-            superGovernor.registerHook(address(A[i].requestDeposit7540VaultHook), false);
-            superGovernor.registerHook(address(A[i].requestRedeem7540VaultHook), false);
-
-            // Register remaining hooks
-            superGovernor.registerHook(address(A[i].approveAndDeposit4626VaultHook), true);
-            superGovernor.registerHook(address(A[i].approveAndDeposit5115VaultHook), true);
-            superGovernor.registerHook(address(A[i].approveAndRedeem5115VaultHook), true);
-            superGovernor.registerHook(address(A[i].approveAndRequestDeposit7540VaultHook), true);
-            superGovernor.registerHook(address(A[i].approveErc20Hook), false);
-            superGovernor.registerHook(address(A[i].transferErc20Hook), false);
-            superGovernor.registerHook(address(A[i].deposit7540VaultHook), true);
-            superGovernor.registerHook(address(A[i].withdraw7540VaultHook), false);
-            superGovernor.registerHook(address(A[i].approveAndRedeem7540VaultHook), true);
-            superGovernor.registerHook(address(A[i].swap1InchHook), false);
-            superGovernor.registerHook(address(A[i].swapOdosHook), false);
-            superGovernor.registerHook(address(A[i].approveAndSwapOdosHook), false);
-            superGovernor.registerHook(address(A[i].acrossSendFundsAndExecuteOnDstHook), false);
-            superGovernor.registerHook(address(A[i].fluidClaimRewardHook), false);
-            superGovernor.registerHook(address(A[i].fluidStakeHook), false);
-            superGovernor.registerHook(address(A[i].approveAndFluidStakeHook), false);
-            superGovernor.registerHook(address(A[i].fluidUnstakeHook), false);
-            superGovernor.registerHook(address(A[i].gearboxClaimRewardHook), false);
-            superGovernor.registerHook(address(A[i].gearboxStakeHook), false);
-            superGovernor.registerHook(address(A[i].approveAndGearboxStakeHook), false);
-            superGovernor.registerHook(address(A[i].gearboxUnstakeHook), false);
-            superGovernor.registerHook(address(A[i].yearnClaimOneRewardHook), false);
-            superGovernor.registerHook(address(A[i].cancelDepositRequest7540Hook), false);
-            superGovernor.registerHook(address(A[i].cancelRedeemRequest7540Hook), false);
-            superGovernor.registerHook(address(A[i].claimCancelDepositRequest7540Hook), false);
-            superGovernor.registerHook(address(A[i].claimCancelRedeemRequest7540Hook), false);
-            superGovernor.registerHook(address(A[i].cancelRedeemHook), false);
-            // EXPERIMENTAL HOOKS FROM HERE ONWARDS
-            superGovernor.registerHook(address(A[i].ethenaCooldownSharesHook), false);
-            superGovernor.registerHook(address(A[i].ethenaUnstakeHook), true);
-            superGovernor.registerHook(address(A[i].morphoBorrowHook), false);
-            superGovernor.registerHook(address(A[i].morphoRepayHook), false);
-            superGovernor.registerHook(address(A[i].morphoRepayAndWithdrawHook), false);
-            superGovernor.registerHook(address(A[i].pendleRouterRedeemHook), false);
-        }
-
-        return A;
-    }
-
     // Hook mocking helpers
 
     /**
@@ -1647,35 +1478,34 @@ contract BaseTest is Helpers, RhinestoneModuleKit, SignatureHelper, MerkleTreeHe
 
             vm.startPrank(MANAGER);
 
-            SuperGovernor superGovernor = SuperGovernor(_getContract(chainIds[i], SUPER_GOVERNOR_KEY));
             ISuperLedgerConfiguration.YieldSourceOracleConfigArgs[] memory configs =
                 new ISuperLedgerConfiguration.YieldSourceOracleConfigArgs[](4);
             configs[0] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
                 yieldSourceOracleId: bytes4(bytes(ERC4626_YIELD_SOURCE_ORACLE_KEY)),
                 yieldSourceOracle: _getContract(chainIds[i], ERC4626_YIELD_SOURCE_ORACLE_KEY),
                 feePercent: 100,
-                feeRecipient: superGovernor.getAddress(keccak256("TREASURY")),
+                feeRecipient: TREASURY,
                 ledger: _getContract(chainIds[i], SUPER_LEDGER_KEY)
             });
             configs[1] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
                 yieldSourceOracleId: bytes4(bytes(ERC7540_YIELD_SOURCE_ORACLE_KEY)),
                 yieldSourceOracle: _getContract(chainIds[i], ERC7540_YIELD_SOURCE_ORACLE_KEY),
                 feePercent: 100,
-                feeRecipient: superGovernor.getAddress(keccak256("TREASURY")),
+                feeRecipient: TREASURY,
                 ledger: _getContract(chainIds[i], SUPER_LEDGER_KEY)
             });
             configs[2] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
                 yieldSourceOracleId: bytes4(bytes(ERC5115_YIELD_SOURCE_ORACLE_KEY)),
                 yieldSourceOracle: _getContract(chainIds[i], ERC5115_YIELD_SOURCE_ORACLE_KEY),
                 feePercent: 100,
-                feeRecipient: superGovernor.getAddress(keccak256("TREASURY")),
+                feeRecipient: TREASURY,
                 ledger: _getContract(chainIds[i], ERC1155_LEDGER_KEY)
             });
             configs[3] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
                 yieldSourceOracleId: bytes4(bytes(STAKING_YIELD_SOURCE_ORACLE_KEY)),
                 yieldSourceOracle: _getContract(chainIds[i], STAKING_YIELD_SOURCE_ORACLE_KEY),
                 feePercent: 100,
-                feeRecipient: superGovernor.getAddress(keccak256("TREASURY")),
+                feeRecipient: TREASURY,
                 ledger: _getContract(chainIds[i], SUPER_LEDGER_KEY)
             });
             ISuperLedgerConfiguration(_getContract(chainIds[i], SUPER_LEDGER_CONFIGURATION_KEY)).setYieldSourceOracles(

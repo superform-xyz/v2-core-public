@@ -15,7 +15,6 @@ import {ISuperLedger} from "../interfaces/accounting/ISuperLedger.sol";
 import {ISuperLedgerConfiguration} from "../interfaces/accounting/ISuperLedgerConfiguration.sol";
 import {ISuperHook, ISuperHookResult, ISuperHookResultOutflow} from "../interfaces/ISuperHook.sol";
 import {HookDataDecoder} from "../libraries/HookDataDecoder.sol";
-import {IVaultBank} from "../../periphery/interfaces/IVaultBank.sol";
 
 /// @title SuperExecutorBase
 /// @author Superform Labs
@@ -291,9 +290,6 @@ abstract contract SuperExecutorBase is ERC7579ExecutorBase, ISuperExecutor, Reen
 
             // Ensure destination chain is different from current chain
             if (dstChainId == block.chainid) revert INVALID_CHAIN_ID();
-
-            // Lock assets in the vault bank for cross-chain transfer
-            IVaultBank(vaultBank).lockAsset(account, spToken, amount, uint64(dstChainId));
 
             // Emit event for cross-chain position minting
             emit SuperPositionMintRequested(account, spToken, amount, dstChainId);
