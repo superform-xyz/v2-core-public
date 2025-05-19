@@ -3,13 +3,13 @@
 	url = https://github.com/foundry-rs/forge-std
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
-	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
 [submodule "lib/ExcessivelySafeCall"]
 	path = lib/ExcessivelySafeCall
 	url = https://github.com/nomad-xyz/ExcessivelySafeCall
 [submodule "lib/solady"]
 	path = lib/solady
-	url = https://github.com/Vectorized/solady
+	url = https://github.com/vectorized/solady
 [submodule "lib/modulekit"]
 	path = lib/modulekit
 	url = https://github.com/rhinestonewtf/modulekit
@@ -25,3 +25,6 @@
 [submodule "lib/pendle-core-v2-public"]
 	path = lib/pendle-core-v2-public
 	url = https://github.com/pendle-finance/pendle-core-v2-public
+[submodule "lib/excessivelysafecall"]
+	path = lib/excessivelysafecall
+	url = https://github.com/nomad-xyz/excessivelysafecall
