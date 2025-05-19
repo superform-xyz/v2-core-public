@@ -4,13 +4,7 @@ Superform v2 is a modular DeFi protocol for yield abstraction that allows dynami
 
 This document provides technical details, reasoning behind design choices, and discussion of potential edge cases and risks in Superform's v2 contracts.
 
-The protocol consists of the following components:
-
-- **Core System**: The primary business logic, interfaces, execution routines, accounting mechanisms, and validation components
-
 ## Repository Structure
-
-
 ```
 src/
 ├── core/               # Core protocol contracts
@@ -488,8 +482,22 @@ Build:
 forge build
 ```
 
+Test: 
+
 Supply your node rpc directly in the makefile and then
 
 ```bash
 make ftest
 ```
+
+Slither Usage:
+
+Only the latest version of Slither is able to run in this repo due to the usage of transient storage
+
+```bash
+pip install --upgrade slither-analyzer==0.11.1
+```
+
+Coverage:
+
+To visualise the lcov report you can use [lcov-viewer](https://lcov-viewer.netlify.app)
